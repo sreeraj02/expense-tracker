@@ -1,5 +1,6 @@
 import csv
 import io
+import calendar
 from datetime import datetime, date
 from flask import Blueprint, request, jsonify, session, Response
 from sqlalchemy import desc
@@ -73,6 +74,7 @@ def list_expenses():
     payment_method = request.args.get("payment_method")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
+    month = (request.args.get("month") or "").strip()
 
     try:
         page = max(1, int(request.args.get("page", 1)))
@@ -93,6 +95,17 @@ def list_expenses():
 
         if payment_method and payment_method in ALLOWED_PAYMENT_METHODS:
             query = query.filter(Expense.payment_method == payment_method)
+
+        if month and len(month) == 7:
+            try:
+                y, m = map(int, month.split("-"))
+                last_day = calendar.monthrange(y, m)[1]
+                query = query.filter(
+                    Expense.expense_date >= date(y, m, 1),
+                    Expense.expense_date <= date(y, m, last_day)
+                )
+            except ValueError:
+                pass
 
         if start_date:
             parsed_start = parse_date(start_date)
@@ -192,45 +205,66 @@ def delete_expense(expense_id):
 def get_summary():
     user_id = session["user_id"]
     today = date.today()
-    current_year_month = (today.year, today.month)
+    requested_month = (request.args.get("month") or "").strip()
+    if not requested_month or len(requested_month) != 7:
+        requested_month = today.strftime("%Y-%m")
+
+    try:
+        req_y, req_m = map(int, requested_month.split("-"))
+    except ValueError:
+        req_y, req_m = today.year, today.month
+        requested_month = today.strftime("%Y-%m")
 
     with get_db() as db:
         all_expenses = db.query(Expense).filter_by(user_id=user_id).all()
         categories = {c.id: c.name for c in db.query(Category).filter_by(user_id=user_id).all()}
 
         total_all_time = 0.0
-        total_this_month = 0.0
-        category_totals = {}
+        total_selected_month = 0.0
+        category_totals_all = {}
+        category_totals_month = {}
         monthly_map = {}
 
         for exp in all_expenses:
             amt = float(exp.amount)
             total_all_time += amt
+            cat_name = categories.get(exp.category_id, "Uncategorized")
+            category_totals_all[cat_name] = round(category_totals_all.get(cat_name, 0.0) + amt, 2)
 
             exp_date = exp.expense_date
-            if exp_date and (exp_date.year, exp_date.month) == current_year_month:
-                total_this_month += amt
-
-            cat_name = categories.get(exp.category_id, "Uncategorized")
-            category_totals[cat_name] = round(category_totals.get(cat_name, 0.0) + amt, 2)
-
             if exp_date:
                 m_key = exp_date.strftime("%Y-%m")
                 monthly_map[m_key] = round(monthly_map.get(m_key, 0.0) + amt, 2)
 
-        sorted_months = sorted(monthly_map.keys())[-6:]
-        monthly_trend = [{"month": m, "amount": monthly_map[m]} for m in sorted_months]
+                if (exp_date.year, exp_date.month) == (req_y, req_m):
+                    total_selected_month += amt
+                    category_totals_month[cat_name] = round(category_totals_month.get(cat_name, 0.0) + amt, 2)
 
-        category_breakdown = [
+        available_months = sorted(monthly_map.keys(), reverse=True)
+        if requested_month not in monthly_map and (req_y, req_m) == (today.year, today.month):
+            if requested_month not in available_months:
+                available_months.insert(0, requested_month)
+
+        sorted_trend = sorted(monthly_map.keys())[-12:]
+        monthly_trend = [{"month": m, "amount": monthly_map[m]} for m in sorted_trend]
+
+        breakdown_month = [
             {"category": k, "amount": v}
-            for k, v in sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
+            for k, v in sorted(category_totals_month.items(), key=lambda x: x[1], reverse=True)
+        ]
+        breakdown_all = [
+            {"category": k, "amount": v}
+            for k, v in sorted(category_totals_all.items(), key=lambda x: x[1], reverse=True)
         ]
 
         return jsonify({
-            "total_this_month": round(total_this_month, 2),
+            "selected_month": requested_month,
+            "total_this_month": round(total_selected_month, 2),
             "total_all_time": round(total_all_time, 2),
             "total_count": len(all_expenses),
-            "category_breakdown": category_breakdown,
+            "available_months": available_months,
+            "category_breakdown": breakdown_month if requested_month else breakdown_all,
+            "category_breakdown_all": breakdown_all,
             "monthly_trend": monthly_trend
         }), 200
 
@@ -243,6 +277,7 @@ def export_csv():
     payment_method = request.args.get("payment_method")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
+    month = (request.args.get("month") or "").strip()
 
     with get_db() as db:
         query = db.query(Expense).filter(Expense.user_id == user_id)
@@ -255,6 +290,16 @@ def export_csv():
             query = query.filter(Expense.category_id == int(category_id))
         if payment_method and payment_method in ALLOWED_PAYMENT_METHODS:
             query = query.filter(Expense.payment_method == payment_method)
+        if month and len(month) == 7:
+            try:
+                y, m = map(int, month.split("-"))
+                last_day = calendar.monthrange(y, m)[1]
+                query = query.filter(
+                    Expense.expense_date >= date(y, m, 1),
+                    Expense.expense_date <= date(y, m, last_day)
+                )
+            except ValueError:
+                pass
         if start_date:
             parsed_start = parse_date(start_date)
             if parsed_start:

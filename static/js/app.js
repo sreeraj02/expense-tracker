@@ -5,6 +5,7 @@ let currentPage = 1;
 const pageLimit = 10;
 let categoryChartInstance = null;
 let monthlyChartInstance = null;
+let selectedMonth = '';
 
 // Helpers
 function formatINR(amount) {
@@ -13,6 +14,13 @@ function formatINR(amount) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
+}
+
+function formatMonthName(yyyy_mm) {
+    if (!yyyy_mm || yyyy_mm.length !== 7) return yyyy_mm || '';
+    const [year, month] = yyyy_mm.split('-');
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
 function getTodayDateString() {
@@ -157,6 +165,25 @@ function renderCategoriesListModal() {
     });
 }
 
+function selectMonth(monthStr) {
+    selectedMonth = monthStr || '';
+    const monthSelect = document.getElementById('filter-month');
+    if (monthSelect) monthSelect.value = selectedMonth;
+
+    const banner = document.getElementById('filter-status-banner');
+    const statusText = document.getElementById('filter-status-text');
+    if (selectedMonth && banner && statusText) {
+        banner.style.display = 'flex';
+        statusText.textContent = `Viewing expenses for: ${formatMonthName(selectedMonth)}`;
+    } else if (banner) {
+        banner.style.display = 'none';
+    }
+
+    currentPage = 1;
+    loadExpenses(1);
+    loadDashboardSummary();
+}
+
 // Expenses
 async function loadExpenses(page = currentPage) {
     currentPage = page;
@@ -172,6 +199,7 @@ async function loadExpenses(page = currentPage) {
     });
 
     if (search) params.append('search', search);
+    if (selectedMonth) params.append('month', selectedMonth);
     if (catId) params.append('category_id', catId);
     if (method) params.append('payment_method', method);
     if (startDate) params.append('start_date', startDate);
@@ -279,12 +307,45 @@ function openAddExpenseModal() {
 // Dashboard Summary & Charts
 async function loadDashboardSummary() {
     try {
-        const data = await apiRequest('/api/expenses/summary');
+        const queryParam = selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : '';
+        const data = await apiRequest(`/api/expenses/summary${queryParam}`);
         
         // Metrics
+        const monthLabel = document.getElementById('metric-month-label');
+        const monthSub = document.getElementById('metric-month-sub');
+        if (selectedMonth) {
+            if (monthLabel) monthLabel.textContent = formatMonthName(selectedMonth);
+            if (monthSub) monthSub.textContent = `Spending in ${formatMonthName(selectedMonth)}`;
+        } else {
+            if (monthLabel) monthLabel.textContent = 'This Month';
+            if (monthSub) monthSub.textContent = 'Current month spending';
+        }
+
         document.getElementById('metric-this-month').textContent = formatINR(data.total_this_month);
         document.getElementById('metric-all-time').textContent = formatINR(data.total_all_time);
         document.getElementById('metric-count').textContent = data.total_count;
+
+        // Populate month dropdown options
+        const monthSelect = document.getElementById('filter-month');
+        if (monthSelect) {
+            const currentVal = selectedMonth || monthSelect.value;
+            monthSelect.innerHTML = '<option value="">All Months</option>';
+            (data.available_months || []).forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = formatMonthName(m);
+                monthSelect.appendChild(opt);
+            });
+            monthSelect.value = currentVal;
+        }
+
+        // Category chart title
+        const catChartTitle = document.getElementById('category-chart-title');
+        if (catChartTitle) {
+            catChartTitle.textContent = selectedMonth 
+                ? `Category Breakdown (${formatMonthName(selectedMonth)})` 
+                : 'Category Breakdown';
+        }
 
         // Category Chart
         renderCategoryChart(data.category_breakdown || []);
@@ -375,6 +436,8 @@ function renderMonthlyChart(trend) {
 
     const labels = trend.map(t => t.month);
     const dataVals = trend.map(t => t.amount);
+    const bgColors = labels.map(l => l === selectedMonth ? '#10b981' : 'rgba(59, 130, 246, 0.7)');
+    const borderColors = labels.map(l => l === selectedMonth ? '#059669' : '#3b82f6');
 
     if (monthlyChartInstance) {
         monthlyChartInstance.destroy();
@@ -387,8 +450,8 @@ function renderMonthlyChart(trend) {
             datasets: [{
                 label: 'Monthly Spending (₹)',
                 data: dataVals,
-                backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                borderColor: '#3b82f6',
+                backgroundColor: bgColors,
+                borderColor: borderColors,
                 borderWidth: 1.5,
                 borderRadius: 4
             }]
@@ -396,6 +459,23 @@ function renderMonthlyChart(trend) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            onHover: (event, chartElement) => {
+                const target = event.native ? event.native.target : (event.chart ? event.chart.canvas : null);
+                if (target) target.style.cursor = chartElement.length ? 'pointer' : 'default';
+            },
+            onClick: (event, chartElement) => {
+                if (chartElement.length > 0) {
+                    const index = chartElement[0].index;
+                    const clickedMonth = labels[index];
+                    if (selectedMonth === clickedMonth) {
+                        selectMonth('');
+                        showToast('Showing all expenses', 'info');
+                    } else {
+                        selectMonth(clickedMonth);
+                        showToast(`Filtered to ${formatMonthName(clickedMonth)}`, 'info');
+                    }
+                }
+            },
             scales: {
                 x: {
                     ticks: { color: '#94a3b8' },
@@ -601,6 +681,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 300);
     });
 
+    // Month filter change
+    const monthFilter = document.getElementById('filter-month');
+    if (monthFilter) {
+        monthFilter.addEventListener('change', (e) => {
+            selectMonth(e.target.value);
+        });
+    }
+
+    const resetMonthBtn = document.getElementById('reset-month-filter-btn');
+    if (resetMonthBtn) {
+        resetMonthBtn.addEventListener('click', () => {
+            selectMonth('');
+        });
+    }
+
     ['filter-category', 'filter-payment', 'filter-start-date', 'filter-end-date'].forEach(id => {
         document.getElementById(id).addEventListener('change', () => {
             currentPage = 1;
@@ -610,12 +705,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('clear-filters-btn').addEventListener('click', () => {
         document.getElementById('filter-search').value = '';
+        const mSelect = document.getElementById('filter-month');
+        if (mSelect) mSelect.value = '';
         document.getElementById('filter-category').value = '';
         document.getElementById('filter-payment').value = '';
         document.getElementById('filter-start-date').value = '';
         document.getElementById('filter-end-date').value = '';
+        selectedMonth = '';
+        const banner = document.getElementById('filter-status-banner');
+        if (banner) banner.style.display = 'none';
         currentPage = 1;
         loadExpenses(1);
+        loadDashboardSummary();
     });
 
     // Pagination
@@ -639,6 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const params = new URLSearchParams();
         if (search) params.append('search', search);
+        if (selectedMonth) params.append('month', selectedMonth);
         if (catId) params.append('category_id', catId);
         if (method) params.append('payment_method', method);
         if (startDate) params.append('start_date', startDate);

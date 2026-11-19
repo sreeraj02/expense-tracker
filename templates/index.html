@@ -69,9 +69,9 @@
             <!-- Metrics Row -->
             <div class="metrics-grid">
                 <div class="metric-card">
-                    <span class="metric-label">This Month</span>
+                    <span class="metric-label" id="metric-month-label">This Month</span>
                     <h2 class="metric-value text-accent" id="metric-this-month">₹0.00</h2>
-                    <span class="metric-sub">Current month spending</span>
+                    <span class="metric-sub" id="metric-month-sub">Monthly spending</span>
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">All-Time Total</span>
@@ -89,7 +89,7 @@
             <div class="charts-grid">
                 <div class="chart-card">
                     <div class="chart-header">
-                        <h3>Category Breakdown</h3>
+                        <h3 id="category-chart-title">Category Breakdown</h3>
                     </div>
                     <div class="chart-wrapper">
                         <canvas id="categoryChart"></canvas>
@@ -127,6 +127,11 @@
                         <input type="text" id="filter-search" placeholder="Search title or notes...">
                     </div>
                     <div class="filter-group">
+                        <select id="filter-month" title="Filter by Month">
+                            <option value="">All Months</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <select id="filter-category">
                             <option value="">All Categories</option>
                         </select>
@@ -149,6 +154,12 @@
                     <div class="filter-group filter-btn-group">
                         <button id="clear-filters-btn" class="btn btn-outline" title="Reset Filters">Clear</button>
                     </div>
+                </div>
+
+                <!-- Active Filter Banner (Optional indicator) -->
+                <div id="filter-status-banner" style="display: none; margin-bottom: 1rem; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.12); padding: 0.5rem 0.9rem; border-radius: var(--radius-sm); border: 1px solid rgba(59, 130, 246, 0.25);">
+                    <span id="filter-status-text" style="font-size: 0.85rem; color: #93c5fd;"></span>
+                    <button id="reset-month-filter-btn" class="btn-outline-sm" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Show All Months</button>
                 </div>
 
                 <!-- Expenses Table -->
