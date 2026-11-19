@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Expense Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Navigation Bar -->
+    <header class="navbar">
+        <div class="nav-brand">
+            <span class="brand-symbol">₹</span>
+            <span class="brand-name">ExpenseTracker</span>
+        </div>
+        <div id="nav-user-section" class="nav-user" style="display: none;">
+            <span class="user-greeting">Hi, <strong id="current-username">User</strong></span>
+            <button id="logout-btn" class="btn btn-outline-sm">Logout</button>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- Auth Section -->
+        <section id="auth-section" class="auth-section">
+            <div class="auth-card">
+                <div class="auth-tabs">
+                    <button id="tab-login" class="tab-btn active" type="button">Sign In</button>
+                    <button id="tab-register" class="tab-btn" type="button">Create Account</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="login-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="login-id">Username or Email</label>
+                        <input type="text" id="login-id" placeholder="Enter username or email" required autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="register-form" class="auth-form" style="display: none;">
+                    <div class="form-group">
+                        <label for="reg-username">Username</label>
+                        <input type="text" id="reg-username" placeholder="Pick a unique username (min 3 chars)" required minlength="3" maxlength="50" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email</label>
+                        <input type="email" id="reg-email" placeholder="name@example.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Password</label>
+                        <input type="password" id="reg-password" placeholder="At least 6 characters" required minlength="6" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Register Account</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Dashboard App Section -->
+        <section id="app-section" class="app-section" style="display: none;">
+            <!-- Metrics Row -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <span class="metric-label">This Month</span>
+                    <h2 class="metric-value text-accent" id="metric-this-month">₹0.00</h2>
+                    <span class="metric-sub">Current month spending</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">All-Time Total</span>
+                    <h2 class="metric-value" id="metric-all-time">₹0.00</h2>
+                    <span class="metric-sub">Across all recorded expenses</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Transactions</span>
+                    <h2 class="metric-value" id="metric-count">0</h2>
+                    <span class="metric-sub">Total expense entries</span>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Category Breakdown</h3>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="categoryChart"></canvas>
+                        <div id="chart-empty-msg" class="empty-state-sub" style="display:none;">No category data yet.</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Monthly Summary</h3>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="monthlyChart"></canvas>
+                        <div id="monthly-empty-msg" class="empty-state-sub" style="display:none;">No monthly trend data yet.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expenses Controls and Filter Section -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <h3>Expenses</h3>
+                        <p class="panel-subtitle">Manage, search, and track your daily spending</p>
+                    </div>
+                    <div class="panel-actions">
+                        <button id="open-add-expense-btn" class="btn btn-primary">+ Add Expense</button>
+                        <button id="open-categories-btn" class="btn btn-secondary">Categories</button>
+                        <button id="export-csv-btn" class="btn btn-outline">Export CSV</button>
+                    </div>
+                </div>
+
+                <!-- Filters Bar -->
+                <div class="filters-bar">
+                    <div class="filter-group filter-search">
+                        <input type="text" id="filter-search" placeholder="Search title or notes...">
+                    </div>
+                    <div class="filter-group">
+                        <select id="filter-category">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <select id="filter-payment">
+                            <option value="">All Methods</option>
+                            <option value="UPI">UPI</option>
+                            <option value="Card">Card</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <input type="date" id="filter-start-date" title="Start Date">
+                    </div>
+                    <div class="filter-group">
+                        <input type="date" id="filter-end-date" title="End Date">
+                    </div>
+                    <div class="filter-group filter-btn-group">
+                        <button id="clear-filters-btn" class="btn btn-outline" title="Reset Filters">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Expenses Table -->
+                <div class="table-container">
+                    <table class="expenses-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Title & Note</th>
+                                <th>Category</th>
+                                <th>Method</th>
+                                <th class="text-right">Amount (₹)</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenses-tbody">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">Loading expenses...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination-bar">
+                    <span id="pagination-info" class="pagination-info">Showing 0 of 0</span>
+                    <div class="pagination-controls">
+                        <button id="prev-page-btn" class="btn btn-outline-sm" disabled>&larr; Previous</button>
+                        <span id="current-page-display" class="page-number">Page 1</span>
+                        <button id="next-page-btn" class="btn btn-outline-sm" disabled>Next &rarr;</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Expense Modal (Add / Edit) -->
+    <div id="expense-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-expense-title">Add Expense</h3>
+                <button type="button" class="modal-close" data-close="expense-modal">&times;</button>
+            </div>
+            <form id="expense-form">
+                <input type="hidden" id="expense-id">
+                <div class="form-group">
+                    <label for="expense-title">Title <span class="required">*</span></label>
+                    <input type="text" id="expense-title" placeholder="e.g. Coffee at Starbucks" required maxlength="200">
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <label for="expense-amount">Amount (₹) <span class="required">*</span></label>
+                        <input type="number" id="expense-amount" placeholder="0.00" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group col-half">
+                        <label for="expense-date">Date <span class="required">*</span></label>
+                        <input type="date" id="expense-date" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <label for="expense-category">Category</label>
+                        <select id="expense-category">
+                            <!-- Injected dynamically -->
+                        </select>
+                    </div>
+                    <div class="form-group col-half">
+                        <label for="expense-method">Payment Method</label>
+                        <select id="expense-method">
+                            <option value="UPI">UPI</option>
+                            <option value="Card">Card</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="expense-note">Note (Optional)</label>
+                    <textarea id="expense-note" rows="2" placeholder="Add additional details..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" data-close="expense-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="save-expense-btn">Save Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Category Management Modal -->
+    <div id="categories-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Manage Categories</h3>
+                <button type="button" class="modal-close" data-close="categories-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-category-form" class="inline-add-form">
+                    <input type="text" id="new-category-name" placeholder="New category name" required maxlength="50">
+                    <button type="submit" class="btn btn-primary">+ Add</button>
+                </form>
+                <div class="category-list-container">
+                    <h4>Your Categories</h4>
+                    <ul id="categories-list" class="category-list">
+                        <!-- Injected dynamically -->
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-close="categories-modal">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
